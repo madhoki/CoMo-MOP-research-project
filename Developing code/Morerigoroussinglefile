@@ -1,0 +1,197 @@
+import numpy as np
+import pandas as pd
+import math
+from scipy.spatial import KDTree
+from scipy.optimize import basinhopping
+
+# === CONFIG ===
+file_path = 'first.xyz' 
+
+# === ATOMIC VAN DER WAALS RADII (Å) ===
+vDW_radii = {
+    'H': 1.20, 'He': 1.40,
+    'Li': 1.82, 'Be': None, 'B': None, 'C': 1.70, 'N': 1.55, 'O': 1.52, 'F': 1.47, 'Ne': 1.54,
+    'Na': 2.27, 'Mg': 1.73, 'Al': None, 'Si': 2.10, 'P': 1.80, 'S': 1.80, 'Cl': 1.75, 'Ar': 1.88,
+    'K': 2.75, 'Ca': None, 'Sc': None, 'Ti': None, 'V': None, 'Cr': None, 'Mn': None, 'Fe': None, 'Co': None, 'Ni': 1.63,
+    'Cu': 1.40, 'Zn': 1.39, 'Ga': 1.87, 'Ge': None, 'As': 1.85, 'Se': 1.90, 'Br': 1.85, 'Kr': 2.02,
+    'Rb': None, 'Sr': None, 'Y': None, 'Zr': None, 'Nb': None, 'Mo': None, 'Tc': None, 'Ru': None, 'Rh': None, 'Pd': 1.63,
+    'Ag': 1.72, 'Cd': 1.58, 'In': 1.93, 'Sn': 2.17, 'Sb': None, 'Te': 2.06, 'I': 1.98, 'Xe': 2.16,
+    'Cs': None, 'Ba': None, 'La': None, 'Ce': None, 'Pr': None, 'Nd': None, 'Pm': None, 'Sm': None,
+    'Eu': None, 'Gd': None, 'Tb': None, 'Dy': None, 'Ho': None, 'Er': None, 'Tm': None, 'Yb': None, 'Lu': None,
+    'Hf': None, 'Ta': None, 'W': None, 'Re': None, 'Os': None, 'Ir': None, 'Pt': 1.75, 'Au': 1.66, 'Hg': 1.55,
+    'Tl': 1.96, 'Pb': 2.02, 'Bi': None, 'Po': None, 'At': None, 'Rn': None, 'Fr': None, 'Ra': None,
+    'Ac': None, 'Th': None, 'Pa': None, 'U': 1.86,  
+
+}
+
+
+def read_xyz(filepath):
+    atoms = []
+    coords = []
+    with open(filepath, 'r') as f:
+        lines = f.readlines()[2:]
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) >= 4:
+                atoms.append(parts[0])
+                coords.append(list(map(float, parts[1:4])))
+    return np.array(atoms), np.array(coords)
+
+def get_pd_distances(atoms, coords):
+    pd_coords = coords[atoms == 'Pd']
+    dists = []
+    for i in range(len(pd_coords)):
+        for j in range(i+1, len(pd_coords)):
+            dists.append(np.linalg.norm(pd_coords[i] - pd_coords[j]))
+    return dists
+
+def get_max_enclosed_sphere(atoms, coords, vdw_radii, centroid=None, resolution=0.0001):
+    if centroid is None:
+        metal_coords = coords[np.isin(atoms, ['Pd', 'Pt', 'Fe'])]
+        centroid = np.mean(metal_coords, axis=0)
+
+    for r in np.linspace(20, 0.1, int(20 / resolution)):
+        intersects = False
+        for atom, coord in zip(atoms, coords):
+            r_atom = vdw_radii.get(atom, 1.7)
+            d = np.linalg.norm(coord - centroid)
+            if d < r + r_atom:
+                intersects = True
+                break
+        if not intersects:
+            volume = (4 / 3) * np.pi * r**3
+            return r, volume
+    return 0.0, 0.0  # fallback if no sphere fits
+
+def get_escape_radius(atoms, coords, vdw_radii, centroid=None, n_rays=1000, resolution=0.05, max_distance=20):
+    """
+    Compute the maximum escape sphere radius using radial sampling from the centroid.
+    """
+
+    if centroid is None:
+        metal_coords = coords[np.isin(atoms, ['Pd', 'Pt', 'Fe'])]
+        if len(metal_coords) == 0:
+            raise ValueError("No metal atoms found to compute centroid.")
+        centroid = np.mean(metal_coords, axis=0)
+
+    radii = np.array([vdw_radii.get(a, 1.7) for a in atoms])
+    tree = KDTree(coords)
+
+    best_escape_radius = 0.0
+
+    indices = np.arange(0, n_rays, dtype=float) + 0.5
+    phi = np.arccos(1 - 2*indices/n_rays)
+    theta = np.pi * (1 + 5**0.5) * indices
+    directions = np.stack([
+        np.sin(phi) * np.cos(theta),
+        np.sin(phi) * np.sin(theta),
+        np.cos(phi)
+    ], axis=1)
+
+    for direction in directions:
+        escape_radius_along_ray = float('inf')
+        for r in np.arange(0, max_distance, resolution):
+            point = centroid + direction * r
+            dists, idxs = tree.query(point, k=5, distance_upper_bound=5.0)
+
+            for dist, idx in zip(dists, idxs):
+                if idx == len(coords): 
+                    continue
+                r_atom = radii[idx]
+                clearance = dist - r_atom
+                if clearance < 0:
+                    escape_radius_along_ray = 0
+                    break
+                escape_radius_along_ray = min(escape_radius_along_ray, clearance)
+            if escape_radius_along_ray == 0:
+                break
+
+        best_escape_radius = max(best_escape_radius, escape_radius_along_ray)
+
+    escape_volume = (4 / 3) * np.pi * best_escape_radius**3
+    return best_escape_radius, escape_volume
+# def escape_radius_at_direction(direction, centroid, tree, radii, max_distance=20.0, resolution=0.05, tolerance=0.0):
+#     """
+#     For a given direction, walk along the ray from centroid and track minimum clearance
+#     before intersecting any atom's van der Waals radius.
+#     """
+#     direction = direction / np.linalg.norm(direction)
+#     escape_radius = float('inf')
+#     for r in np.arange(0, max_distance, resolution):
+#         point = centroid + r * direction
+#         dists, idxs = tree.query(point, k=10, distance_upper_bound=8.0)
+#         for dist, idx in zip(dists, idxs):
+#             if idx == len(radii):  # skip if no neighbors found
+#                 continue
+#             clearance = dist - radii[idx] - tolerance
+#             if clearance < 0:
+#                 return 0  # hit atom
+#             escape_radius = min(escape_radius, clearance)
+#     return escape_radius
+
+# def escape_objective(direction, centroid, tree, radii):
+#     """Objective function for basin hopping (maximize escape radius)"""
+#     return -escape_radius_at_direction(direction, centroid, tree, radii)
+
+# def get_escape_radius(coords, atoms,vdw_radii):
+#     """
+#     Main function to calculate maximum escape radius and volume using 
+#     a basin-hopping global optimization algorithm.
+#     """
+#     # Step 1: Calculate metal atom centroid
+#     metal_indices = [i for i, atom in enumerate(atoms) if atom in ['Pd', 'Pt', 'Fe', 'Cu', 'Zn']]
+#     if not metal_indices:
+#         raise ValueError("No metal atoms found to define the cage centroid.")
+#     centroid = np.mean([coords[i] for i in metal_indices], axis=0)
+
+#     # Step 2: Build spatial index
+#     radii = np.array([vdw_radii.get(atom, 1.7) for atom in atoms])
+#     tree = KDTree(coords)
+
+#     # Step 3: Optimize direction with basin hopping
+#     initial_direction = np.random.randn(3)
+#     initial_direction /= np.linalg.norm(initial_direction)
+
+#     minimizer_kwargs = {
+#         "method": "L-BFGS-B",
+#         "args": (centroid, tree, radii)
+#     }
+
+#     result = basinhopping(
+#         escape_objective,
+#         initial_direction,
+#         minimizer_kwargs=minimizer_kwargs,
+#         niter=20,
+#         stepsize=0.5,
+#         disp=True
+#     )
+
+#     # Step 4: Calculate final radius and volume
+#     best_escape_radius = -result.fun
+#     escape_volume = (4 / 3) * np.pi * best_escape_radius**3
+#     return best_escape_radius, escape_volume
+
+
+data = []
+try:
+    atoms, coords = read_xyz(file_path)
+    centroid = np.mean(coords, axis=0)
+    pd_dists = get_pd_distances(atoms, coords)
+    min_pd, max_pd = (min(pd_dists), max(pd_dists)) if pd_dists else (None, None)
+
+    enc_radius, enc_volume = get_max_enclosed_sphere(atoms, coords,vDW_radii)
+    esc_radius, esc_volume = get_escape_radius(atoms,coords,vDW_radii)
+    data.append({
+        'filename': file_path,
+        'num_Pd': np.sum(atoms == 'Pd'),
+        'min_Pd–Pd_dist (Å)': round(min_pd, 2) if min_pd else None,
+        'max_Pd–Pd_dist (Å)': round(max_pd, 2) if max_pd else None,
+        'enclosed_radius (Å)': round(enc_radius, 2),
+        'enclosed_volume (Å³)': round(enc_volume, 2),
+        'escape_volume (Å³)': round(esc_volume,2)
+    })
+except Exception as e:
+    print(f"Error processing {file_path}: {e}")
+
+df = pd.DataFrame(data)
+print(df)
