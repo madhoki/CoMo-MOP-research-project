@@ -1,12 +1,16 @@
 import numpy as np
 import math
 from rdkit.Chem import GetPeriodicTable
-
+from rdkit import Chem
+from rdkit.Chem import AllChem
+import os
 PERIODIC_TABLE = GetPeriodicTable()
 
 VDW_RADII_DICT = {'H': 1.20, 'He': 1.40, 'Li': 1.82, 'Be': 1.53, 'B': 1.92, 'C': 1.70, 'N': 1.55, 'O': 1.52, 'F': 1.47, 'Ne': 1.54, 'Na': 2.27, 'Mg': 1.73, 'Al': 1.84, 'Si': 2.10, 'P': 1.80, 'S': 1.80, 'Cl': 1.75, 'Ar': 1.88, 'K': 2.75, 'Ca': 2.31, 'Sc': 2.30, 'Ti': 2.15, 'V': 2.05, 'Cr': 2.05, 'Mn': 2.05, 'Fe': 2.00, 'Co': 2.00, 'Ni': 1.97, 'Cu': 1.96, 'Zn': 2.01, 'Ga': 1.87, 'Ge': 2.11, 'As': 1.85, 'Se': 1.90, 'Br': 1.85, 'Kr': 2.02, 'Rb': 3.03, 'Sr': 2.49, 'Y': 2.40, 'Zr': 2.30, 'Nb': 2.15, 'Mo': 2.10, 'Tc': 2.05, 'Ru': 2.05, 'Rh': 2.00, 'Pd': 2.05, 'Ag': 2.03, 'Cd': 2.18, 'In': 1.93, 'Sn': 2.17, 'Sb': 2.06, 'Te': 2.06, 'I': 1.98, 'Xe': 2.16, 'Cs': 3.43, 'Ba': 2.68, 'La': 2.50, 'Ce': 2.48, 'Pr': 2.47, 'Nd': 2.45, 'Pm': 2.43, 'Sm': 2.42, 'Eu': 2.40, 'Gd': 2.38, 'Tb': 2.37, 'Dy': 2.35, 'Ho': 2.33, 'Er': 2.32, 'Tm': 2.30, 'Yb': 2.28, 'Lu': 2.27, 'Hf': 2.25, 'Ta': 2.20, 'W': 2.10, 'Re': 2.05, 'Os': 2.00, 'Ir': 2.00, 'Pt': 2.05, 'Au': 2.10, 'Hg': 2.05, 'Tl': 1.96, 'Pb': 2.02, 'Bi': 2.07, 'Po': 1.97, 'At': 2.02, 'Rn': 2.20}
 
 USE_VDW_RADII = False
+
+
 
 def get_radius(atom):
     if USE_VDW_RADII:
@@ -80,6 +84,7 @@ def read_xyz(filepath):
                 coords.append([float(x) for x in p[1:4]])
     return np.array(atoms), np.array(coords)
 
+
 def plot_sphere_directions(n=1000):
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
@@ -90,3 +95,52 @@ def plot_sphere_directions(n=1000):
     ax.scatter(xs, ys, zs, s=10, c='b', alpha=0.7)
     ax.set(xlabel='X', ylabel='Y', zlabel='Z', title=f'{n} directions on a sphere (Fibonacci sphere)')
     plt.tight_layout(); plt.show()
+
+
+
+
+def get_xyz_coords_and_masses_from_file(xyz_path, unit_conversion=0.01):
+    with open(xyz_path, 'r') as f:
+        lines = f.readlines()[2:]
+    symbols = []
+    coords = []
+    for line in lines:
+        parts = line.strip().split()
+        if len(parts) < 4:
+            continue
+        symbols.append(parts[0])
+        coords.append([float(x) for x in parts[1:4]])
+    coords = np.array(coords) * unit_conversion
+    pt = Chem.GetPeriodicTable()
+    masses = np.array([pt.GetAtomicWeight(s) for s in symbols])
+    return coords, masses
+
+def calculate_asphericity_from_xyz(xyz_path):
+    coords, masses = get_xyz_coords_and_masses_from_file(xyz_path)
+    total_mass = np.sum(masses)
+    center_of_mass = np.average(coords, axis=0, weights=masses)
+    centered_coords = coords - center_of_mass
+
+    # Build inertia tensor
+    I = np.zeros((3, 3))
+    for i in range(len(masses)):
+        x, y, z = centered_coords[i]
+        m = masses[i]
+        I[0, 0] += m * (y**2 + z**2)
+        I[1, 1] += m * (x**2 + z**2)
+        I[2, 2] += m * (x**2 + y**2)
+        I[0, 1] -= m * x * y
+        I[0, 2] -= m * x * z
+        I[1, 2] -= m * y * z
+    I[1, 0] = I[0, 1]
+    I[2, 0] = I[0, 2]
+    I[2, 1] = I[1, 2]
+
+    eigenvals = np.linalg.eigvalsh(I)
+    λ1, λ2, λ3 = sorted(eigenvals)
+
+    # Asphericity formula
+    mean = (λ1 + λ2 + λ3) / 3
+    asphericity = (λ1 - mean)**2 + (λ2 - mean)**2 + (λ3 - mean)**2
+
+    return asphericity
