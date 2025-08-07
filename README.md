@@ -1,7 +1,7 @@
 Computational chemistry project looking at metal-organic polyhedra.
 All data should be imported via the provided FinalData folder.
 
-The folders 'Developing Code' and 'random stuff' should be ignored. They just contain unstructured attempts at a variety of different problems.
+The folder 'random stuff' should be ignored. It just contains unstructured attempts at a variety of different problems.
 
 The folder 'FinalisedCode' contains everything relating to processing xyz datasets:
 - The file 'MOPgeoDataGeneration_final.py' should be run to generate such a dataset, when provided with a folder of xyz files.
