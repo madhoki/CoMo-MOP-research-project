@@ -88,7 +88,6 @@ import pandas as pd
 from rdkit import Chem
 import cgbind
 
-# --- Configuration ---
 csv_path = os.path.join('FinalData', 'known_mop_cbu_charges.csv')
 mol_dir = os.path.join('organic_cbu_geo_files', 'mol_files')
 metal_dir = os.path.join('metal_cbu_geo_files')
@@ -96,11 +95,10 @@ twa_dir = 'FinalData/twa_mop_cavity_data'
 output_dir = 'assembled_mops_xyz'
 os.makedirs(output_dir, exist_ok=True)
 
-# --- Load Data and Process First Row ---
 df = pd.read_csv(csv_path)
 row = df.iloc[0]
 
-# --- Extract Metadata ---
+
 organic_cbu_id = row.iloc[4]
 arch_name = 'm6l8'  # could also be row.get('Assembly_Model_Label')
 metal_name = row.get('Metal_CBU')
@@ -111,7 +109,6 @@ mop_name = row.get('MOP')
 
 print(f"Processing MOP: {mop_name} | Metal: {metal_name} | Linker ID: {organic_cbu_id}")
 
-# --- Find Linker File ---
 mol_file = next(
     (os.path.join(mol_dir, f) for f in os.listdir(mol_dir) if organic_cbu_id in f and f.endswith('.mol')),
     None
@@ -120,7 +117,6 @@ if not mol_file:
     print(f"Skipping {mop_name} (no MOL file found for {organic_cbu_id})")
     exit()
 
-# --- Read Linker and Generate SMILES ---
 mol = Chem.MolFromMolFile(mol_file)
 if mol is None:
     print(f"Failed to read MOL file: {mol_file}")
@@ -129,7 +125,6 @@ if mol is None:
 linker_smiles = Chem.MolToSmiles(mol)
 print(f"Linker SMILES: {linker_smiles}")
 
-# --- Load Metal Core from XYZ ---
 core_xyz_path = next(
     (os.path.join(metal_dir, f) for f in os.listdir(metal_dir) if metal_cbu_id in f and f.endswith('.xyz')),
     None
@@ -140,7 +135,6 @@ if not core_xyz_path:
 
 print(f"Using metal core file: {core_xyz_path}")
 
-# (Optional) Read core molecule and print SMILES if needed
 core_mol = Chem.MolFromXYZFile(core_xyz_path)
 if core_mol:
     core_smiles = Chem.MolToSmiles(core_mol)
@@ -148,12 +142,10 @@ if core_mol:
 else:
     print(f"Warning: Failed to parse core XYZ into RDKit Mol object (proceeding anyway)")
 
-# --- Assemble MOP ---
 try:
     linker = cgbind.Linker(smiles=linker_smiles, arch_name=arch_name)
     cage = cgbind.Cage(core=core_xyz_path, linker=linker, metal=metal_name, metal_charge=metal_charge)
 
-    # Save Assembled Structure
     struct_dir = os.path.join(output_dir, str(ccdc))
     os.makedirs(struct_dir, exist_ok=True)
     xyz_filename = f"{ccdc}_{mop_name}.xyz"
@@ -161,7 +153,6 @@ try:
     cage.print_xyz_file(filename=xyz_path)
     print(f"Saved assembled MOP: {xyz_filename}")
 
-    # Copy original TWA structure (if it exists)
     twa_src = os.path.join(twa_dir, f"{ccdc}.xyz")
     twa_dst = os.path.join(struct_dir, f"{ccdc}.xyz")
     if os.path.isfile(twa_src):
