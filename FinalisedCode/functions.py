@@ -121,7 +121,6 @@ def calculate_asphericity_from_xyz(xyz_path):
     center_of_mass = np.average(coords, axis=0, weights=masses)
     centered_coords = coords - center_of_mass
 
-    # Build inertia tensor
     I = np.zeros((3, 3))
     for i in range(len(masses)):
         x, y, z = centered_coords[i]

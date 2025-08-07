@@ -16,10 +16,10 @@ from functions import (
     max_pore_size_all_directions
 )
 
-# Restore variables needed for main code
-# folder = 'expt_structures_from_OntoMOPs_KG'  # adjust if needed
+###CHANGE THE FOLDERS DEPENDING ON WHICH XYZ STUCTURES NEED TO BE ANALYSED
+# folder = 'expt_structures_from_OntoMOPs_KG' 
 # output_csv = 'all_results_for_ONTOMOPKG.csv'
-folder = 'zr_tet_mops_xtb_results'  # adjust if needed
+folder = 'zr_tet_mops_xtb_results' 
 output_csv = 'all_results_for_zrTET.csv'
 from functions import (
     get_radius,

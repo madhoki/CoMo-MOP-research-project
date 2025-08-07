@@ -5,7 +5,6 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Load data
 df = pd.read_csv('ML_model_larger_datasets/data/enriched_mop_data.csv')
 df = df.replace('error', pd.NA).dropna()
 
@@ -18,7 +17,6 @@ for col in [
 ]:
     df[col] = df[col].astype(float)
 
-# Choose target and features
 target = 'max_pore_size_diameter'
 target = 'homo_lumo_gap_eV'
 
@@ -41,7 +39,6 @@ X = df[features]
 y = df[target]
 mop_ids = df['filename']  # for error reporting later
 
-# Initial model training and evaluation
 X_train, X_test, y_train, y_test, mop_train, mop_test = train_test_split(
     X, y, mop_ids, test_size=0.2, random_state=42
 )

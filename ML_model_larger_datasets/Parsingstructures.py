@@ -4,7 +4,7 @@ import os
 print(os.getcwd())
 
 gaps_df = pd.read_csv(
-    'zr_tet_mops_xtb_results/homo_lumo_gaps.csv',
+    'FinalData/zr_tet_mops_xtb_results/homo_lumo_gaps.csv',
     names=['mop_id', 'homo_lumo_gap_eV']
 )
 

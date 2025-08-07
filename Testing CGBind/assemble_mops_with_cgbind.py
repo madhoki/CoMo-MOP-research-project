@@ -92,7 +92,7 @@ import cgbind
 csv_path = os.path.join('FinalData', 'known_mop_cbu_charges.csv')
 mol_dir = os.path.join('organic_cbu_geo_files', 'mol_files')
 metal_dir = os.path.join('metal_cbu_geo_files')
-twa_dir = 'twa_mop_cavity_data'
+twa_dir = 'FinalData/twa_mop_cavity_data'
 output_dir = 'assembled_mops_xyz'
 os.makedirs(output_dir, exist_ok=True)
 

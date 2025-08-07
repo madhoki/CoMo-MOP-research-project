@@ -4,7 +4,7 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import Descriptors, Lipinski, Crippen, rdMolDescriptors, AllChem
 
-CBU_DIR = 'zr_tet_mops_xtb_results/cbus'
+CBU_DIR = 'FinalData/zr_tet_mops_xtb_results/cbus'
 MERGED_INPUT = 'ML_model_larger_datasets/data/merged_mop_data.csv'
 MERGED_OUTPUT = 'ML_model_larger_datasets/data/enriched_mop_data.csv'
 
