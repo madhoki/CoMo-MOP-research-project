@@ -7,15 +7,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 
-# Load data
 df = pd.read_csv('all_results_for_twa.csv')
 df = df.replace('error', pd.NA).dropna()
 
-# Convert numeric columns to float (skip filename and inner_atom)
 for col in ['avg_metal_dist', 'inner_diameter', 'inner_volume', 'max_pore_size_diameter', 'max_pore_size_volume']:
     df[col] = df[col].astype(float)
 
-target = 'max_pore_size_diameter'  # Change as needed
+target = 'max_pore_size_diameter' 
 def paired_feature(target):
     if 'diameter' in target:
         return target.replace('diameter', 'volume')
@@ -31,16 +29,14 @@ features = [col for col in df.columns if col not in exclude]
 X = df[features].values.astype(np.float32)
 y = df[target].values.astype(np.float32).reshape(-1, 1)
 
-# Train/test split
+
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Torch datasets/loaders
 train_ds = TensorDataset(torch.tensor(X_train), torch.tensor(y_train))
 test_ds = TensorDataset(torch.tensor(X_test), torch.tensor(y_test))
 train_loader = DataLoader(train_ds, batch_size=16, shuffle=True)
 test_loader = DataLoader(test_ds, batch_size=16)
 
-# Simple feedforward network
 def make_model(input_dim):
     return nn.Sequential(
         nn.Linear(input_dim, 64),
@@ -54,7 +50,6 @@ model = make_model(X.shape[1])
 loss_fn = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
-# Training loop
 epochs = 200
 train_losses = []
 val_losses = []
@@ -69,7 +64,6 @@ for epoch in range(epochs):
         optimizer.step()
         batch_losses.append(loss.item())
     train_losses.append(np.mean(batch_losses))
-    # Validation loss
     model.eval()
     with torch.no_grad():
         val_pred = model(torch.tensor(X_test))
@@ -78,14 +72,12 @@ for epoch in range(epochs):
     if (epoch+1) % 50 == 0:
         print(f"Epoch {epoch+1}/{epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_loss:.4f}")
 
-# Predict and evaluate
 model.eval()
 y_pred = model(torch.tensor(X_test)).detach().numpy().flatten()
 mse = mean_squared_error(y_test, y_pred)
 r2 = r2_score(y_test, y_pred)
 print(f'MSE: {mse:.3f}, R2: {r2:.3f}')
 
-# Loss curve
 plt.figure()
 plt.plot(train_losses, label='Train Loss')
 plt.plot(val_losses, label='Val Loss')
@@ -96,7 +88,6 @@ plt.title('Training/Validation Loss')
 plt.tight_layout()
 plt.show()
 
-# Parity plot
 plt.figure(figsize=(6,6))
 plt.scatter(y_test, y_pred, alpha=0.7)
 plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
@@ -106,7 +97,6 @@ plt.title(f'Parity Plot\n$R^2$={r2:.3f}, MSE={mse:.3f}')
 plt.tight_layout()
 plt.show()
 
-# Training set size optimisation
 train_sizes = [0.5, 0.6, 0.7, 0.8, 0.9]
 r2_scores = []
 mse_scores = []
@@ -115,11 +105,9 @@ for size in train_sizes:
     train_ds = TensorDataset(torch.tensor(X_train), torch.tensor(y_train))
     test_ds = TensorDataset(torch.tensor(X_test), torch.tensor(y_test))
     train_loader = DataLoader(train_ds, batch_size=16, shuffle=True)
-    # Re-initialize model for each run
     model = make_model(X.shape[1])
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    # Shorter training for speed
     epochs = 100
     for epoch in range(epochs):
         model.train()
